@@ -488,15 +488,470 @@ abstract class WidgetsBindingObserver {
    可以使用 TabBarView,也可以使用 Pageview,或者直接使用 IndexedStack
    前面二种带动画可以左右华东，IndexedStack 如果也想要动画，推荐包括一层[这个](https://github.com/best-flutter/transformer_page_view)
 
-8. 滚动处理
+8. 布局小技巧，占位
+
+   有些 padding,和 margin 不想包起来的情况下，可以直接用 SizedBox 去占位
+
+9. wrap 换行。
+
+   http://www.ptbird.cn/flutter-wrapper.html
+
+10. 前端的类似重叠位置的布局
+
+    使用 Stack ,和 Positioned [地址](https://www.jianshu.com/p/387d730cbe92)
+
+11. 导航返回拦截，避免用户误触返回按钮而导致 APP 退出
+
+    http://www.apkbus.com/flutter_book/chapter7/willpopscope.html
+
+12. 修改状态栏字体颜色
+
+    https://www.jianshu.com/p/15700d9145aa
+
+13. 滚动处理
+
+    对于一些滚动复杂有横向和竖向滚动，部分滚动元素需要固定在头部的情况，比如一些页面由 banner,tab,content 组成，滚动以后需要吧 tab 固定在头部等，那么你需要了解下这个[Sliver 组件](https://juejin.im/post/5cb3405ae51d456e442ff310)
 
 ---
 
 #### 3 **路由**
 
+1.  了解 flutter 提供的路由
+
+    推荐[文档地址](https://juejin.im/post/5cad8dd0f265da039955c27d#heading-7)
+
+2.  推荐使用 fluro
+
+    [fluro](https://github.com/theyakka/fluro)
+
+    1. 配置路由地址 /router/routes.dart
+
+    ```
+     import 'package:fluro/fluro.dart';
+     import 'package:flutter/material.dart';
+     import './route_handlers.dart';
+
+     class Routes {
+         static String root = "/";
+         static String home = "/home";
+         static String my = "/my";
+         static String login = "/login";
+         // 对路由进行配置，define进行定义handler是回调
+         static void configureRoutes(Router router) {
+             router.notFoundHandler = Handler(
+                 handlerFunc: (BuildContext context, Map<String, List<String>> params) {
+             print("该路由没有找到");
+             });
+             router.define(root, handler: rootHandler);
+             router.define(home, handler: homeHandler);
+             router.define(my, handler: myRouteHandler);
+             router.define(login, handler: loginRouterHandler);
+         }
+     }
+
+    ```
+
+    2.  路由映射的 hanlder 方法 /routes/route_handlers.dart
+
+    ```
+
+         import 'package:myapp/page/my.dart';
+         import 'package:myapp/page/login.dart';
+         import 'package:myapp/page/page_container.dart';
+
+         import 'package:myapp/common/utils/fluro_convert_util.dart';
+         import 'package:fluro/fluro.dart';
+         import 'package:flutter/material.dart';
+
+         Handler homeHandler = Handler(
+             handlerFunc: (BuildContext context, Map<String, List<String>> params) {
+         return PageContainer();
+         });
+
+         Handler rootHandler = Handler(
+             handlerFunc: (BuildContext context, Map<String, List<String>> params) {
+         return My();
+         });
+
+         Handler myRouteHandler = Handler(
+             handlerFunc: (BuildContext context, Map<String, List<String>> params) {
+         return My();
+         });
+
+         Handler loginRouterHandler = Handler(
+             handlerFunc: (BuildContext context, Map<String, List<String>> params) {
+         return Login();
+         });
+
+    ```
+
+    3. 定义 router 实例，方便调用，/router/application
+
+    ```
+        import 'package:fluro/fluro.dart';
+
+        class Application {
+            static Router router;
+        }
+
+    ```
+
+    4. 使用
+
+    应用入口里面需要先挂载一下
+
+    ```
+        @override
+        Widget build(BuildContext context) {
+            return MaterialApp(
+            title: 'myapp',
+            theme: ThemeData(
+                primaryColor: ThemeUtils.currentColorTheme,
+            ),
+            home: SplashPage(),
+            onGenerateRoute: Application.router.generator, // 挂载路由
+            navigatorKey: navigatorKey,
+            );
+        }
+    ```
+
+    ```
+    import 'package:fluro/fluro.dart';
+    import 'package:myapp/router/application.dart';
+    import 'package:myapp/router/routers.dart';
+
+    Application.router.navigateTo(
+      context,
+      address,
+      transition: TransitionType.native, // 可以定义不同的动画
+      replace: false, // 是否使用replace
+    );
+    ```
+
+    5. 路由传参，和不支持中文等处理
+
+    https://juejin.im/post/5d051a5b6fb9a07ec07fbdc5
+
+    上述实践过程中，有些特殊复杂的参数，如果不好处理，可以直接使用没有封装的跳转处理
+
+    ```
+    void gotoAudioPage(Context<CourseDetailState> ctx) async {
+        await Navigator.of(ctx.context)
+            .push(new MaterialPageRoute(builder: (BuildContext context) {
+            // 生成音频页面，传递当前课程详情state给音频页面
+            return AudioPage().buildPage({'courseDetailState': ctx.state});
+        })).then((data) {
+            // 返回音频的时候根据pop设置的值设置当前的目录
+            if (data['currentCatalog'] != ctx.state.currentCatalog) {
+            ctx.dispatch(
+                CourseDetailActionCreator.changeCurrentTab(data['currentCatalog']),
+            );
+            }
+            // 根据音频播放位置跳转视频的播放位置
+            ctx.dispatch(
+            CourseDetailActionCreator.changeVideoEvent(
+                VideoEvent(
+                    playType: PlayType.video,
+                    videoModel: ctx.state.videoEventData.videoModel,
+                    position: data['position']),
+            ),
+            );
+        });
+    }
+
+    ```
+
 ---
 
 #### 4 **http 请求**
+
+推荐使用 [dio](https://github.com/flutterchina/dio/blob/master/README-ZH.md)
+
+里面提供了很丰富的 http 请求处理，对其根据自己的业务进行封装即可
+
+1. 定义实例 /http/http.dart
+
+   ```
+   import 'package:dio/dio.dart';
+   import 'package:flutter/material.dart';
+   import 'package:myapp/common/http/code.dart';
+   import 'dart:collection';
+   import 'dart:io';
+
+   import 'package:myapp/common/http/interceptors/log_interceptor.dart';
+
+   import 'package:myapp/common/http/interceptors/token_interceptor.dart';
+   import 'package:myapp/common/utils/data_utils.dart';
+   import 'package:myapp/main.dart';
+   import 'package:myapp/page/login.dart';
+
+   import 'address.dart';
+
+   // 格式化结果
+   class DataResult<T> {
+       int code;
+       String msg;
+       T data;
+
+       DataResult(this.code, this.msg, this.data);
+
+       @override
+       String toString() {
+           return 'BaseResp{code: $code, msg: $msg, data: $data}';
+       }
+   }
+
+   // http请求
+   class HttpManager {
+       static const CONTENT_TYPE_JSON = "application/json";
+       static const CONTENT_TYPE_FORM = "application/x-www-form-urlencoded";
+       static BaseOptions options = new BaseOptions(
+           baseUrl: Address.host,
+           connectTimeout: 20000,
+           receiveTimeout: 20000,
+           contentType: ContentType.json,
+           queryParameters: {},
+       );
+
+       Dio _dio = new Dio(options); // 使用默认配置
+
+       HttpManager() {
+           // 增加token拦截处理
+           _dio.interceptors.add(new TokenInterceptors());
+
+           // 增加日志输出
+           _dio.interceptors.add(new LogsInterceptors());
+       }
+
+       /*
+       * 发起网络请求
+       * url 请求地址
+       * params 请求参数
+       * header 请求头
+       * option 请求配置
+       */
+       fetch(
+           url, {
+           params,
+           Map<String, dynamic> header,
+           Options option,
+           Map<String, dynamic> query,
+           bool noTip = false,
+       }) async {
+           Map<String, dynamic> headers = new HashMap();
+           if (header != null) {
+               headers.addAll(header);
+           }
+
+           if (option != null) {
+               option.headers = headers;
+           } else {
+               option = new Options(method: "get");
+               option.headers = headers;
+           }
+
+           Response response;
+           try {
+           response = await _dio.request(
+               url,
+               data: params,
+               options: option,
+               queryParameters: query,
+           );
+           return response.data;
+           } on DioError catch (e) {
+           Response errorResponse;
+           if (e.response != null) {
+               errorResponse = e.response;
+           } else {
+               errorResponse = Response(statusCode: 666);
+           }
+           if (e.type == DioErrorType.CONNECT_TIMEOUT ||
+               e.type == DioErrorType.RECEIVE_TIMEOUT) {
+               errorResponse.statusCode = Code.NETWORK_TIMEOUT;
+           }
+           // 鉴权失败，token过期，跳转登录界面
+           if (e.response.statusCode == 401 && e.request.path != 'user') {
+               DataUtils.logout();
+               navigatorKey.currentState.pushAndRemoveUntil(
+               MaterialPageRoute(
+                   builder: (_) {
+                   return Login();
+                   },
+               ),
+               (route) => route == null,
+               );
+           }
+           Code.errorHandleFunction(errorResponse.statusCode, e.message, noTip);
+           return {'code': errorResponse.statusCode, 'msg': e.message, 'data': null};
+           }
+       }
+
+       // 解析返回结果，最终只返回data数据
+       static decodeJson<T>(Map response) {
+           DataResult resp =
+               DataResult(response['code'], response['msg'], response['data']);
+           return resp.data;
+       }
+   }
+
+   final HttpManager httpManager = new HttpManager();
+
+   ```
+
+   > 401 等授权失败处理 上述调用了 navigatorKey.currentState.pushAndRemoveUntil 需要在应用入口
+
+   ```
+       final navigatorKey = GlobalKey<NavigatorState>();
+       class _MyAppState extends State<MyApp> {
+           // 这里对应了之前请求错误通过errorHandleFunction传出来的回调，借用了eventbus库
+           errorHandleFunction(int code, message) {
+               switch (code) {
+               case Code.NETWORK_ERROR:
+                   Fluttertoast.showToast(msg: '网络错误');
+                   break;
+               case 401:
+                   Fluttertoast.showToast(msg: '[401错误可能: 未授权 \\ 授权登录失败 \\ 登录过期');
+                   break;
+               case 403:
+                   Fluttertoast.showToast(msg: '403权限错误');
+                   break;
+               case 404:
+                   Fluttertoast.showToast(msg: '404错误');
+                   break;
+               case Code.NETWORK_TIMEOUT:
+                   //超时
+                   Fluttertoast.showToast(msg: '请求超时');
+                   break;
+               default:
+                   Fluttertoast.showToast(msg: '其他异常$message');
+                   break;
+               }
+           }
+
+           @override
+           Widget build(BuildContext context) {
+               return MaterialApp(
+               title: 'myapp',
+               theme: ThemeData(
+                   primaryColor: ThemeUtils.currentColorTheme,
+               ),
+               home: SplashPage(),
+               onGenerateRoute: Application.router.generator,
+               navigatorKey: navigatorKey,
+               );
+           }
+       }
+
+   ```
+
+   2. http code 状态帮助类 /http/code.dart
+
+   ```
+    import 'package:myapp/common/event/http_error_event.dart';
+    import 'package:myapp/common/event/event_bus.dart';
+
+    ///错误编码
+    class Code {
+        ///网络错误
+        static const NETWORK_ERROR = -1;
+
+        ///网络超时
+        static const NETWORK_TIMEOUT = -2;
+
+        // 成功请求code
+        static const SUCCESS = 200;
+
+        // 错误的回调函数
+        static errorHandleFunction(code, message, noTip) {
+            if (noTip) {
+                return message;
+            }
+            MyEventBus.event.fire(new HttpErrorEvent(code, message));
+                return message;
+        }
+    }
+
+   ```
+
+   3. api 地址 /http/address.dart
+
+   ```
+    class Address {
+        static const String host = "https://peiban-beta.mypaas.com.cn/api/v1/";
+
+        static const String _login = "login"; // 登录
+        static const String _userInfo = "user"; // 用户信息
+        static const String _banner = "carouse"; // 首页banner
+        static const String _category = "cateory"; // 首页课程类别
+    }
+
+   ```
+
+   4. log 日志 /http/interceptors/log_interceprot.dart
+
+   ```
+    import 'package:dio/dio.dart';
+    import 'package:myapp/common/config/config.dart';
+
+    class LogsInterceptors extends InterceptorsWrapper {
+        @override
+        onRequest(RequestOptions options) {
+            if (Config.DEBUG) {
+                print("请求url：${options.path}");
+                print('请求头: ' + options.headers.toString());
+                if (options.data != null) {
+                    print('请求参数: ' + options.data.toString());
+                }
+            }
+            return options;
+        }
+
+        @override
+        onResponse(Response response) {
+            if (Config.DEBUG) {
+                if (response != null) {
+                    print('返回参数: ' + response.toString());
+                }
+            }
+            return response; // continue
+        }
+
+        @override
+        onError(DioError err) {
+            if (Config.DEBUG) {
+                print('请求异常: ' + err.toString());
+                print('请求异常信息: ' + err.response?.toString() ?? "");
+            }
+            return err;
+        }
+    }
+
+   ```
+
+   5. token /http/interceptors/token_interceptor.dart
+
+   ```
+    import 'package:dio/dio.dart';
+    import 'package:myapp/common/utils/data_utils.dart';
+
+    class TokenInterceptors extends InterceptorsWrapper {
+        @override
+        onRequest(RequestOptions options) async {
+            //授权码
+            String token = await DataUtils.getAccessToken();
+            if (token != null && token.isNotEmpty) {
+                options.queryParameters = options.queryParameters ?? {};
+                options.queryParameters['token'] = token;
+                print(options.queryParameters.toString());
+            }
+            return options;
+        }
+    }
+
+   ```
+
+   > 其中 token 存储在类似 localstorage 的东西 shared_preferences 这个库
 
 ---
 
@@ -507,3 +962,7 @@ abstract class WidgetsBindingObserver {
 #### 6 **调试**
 
 ---
+
+```
+
+```
