@@ -423,7 +423,7 @@ abstract class WidgetsBindingObserver {
 
 推荐 [地址](https://juejin.im/post/5bc5a56a5188255c352d88fe)
 
-> 上述只是简单介绍了一下页面布局用的常见的一些元素，还有很多组件比如动画等其他组件请自行查阅文档
+> 上述只是简单介绍了一下页面布局用的常见的一些元素，还有很多组件比如动画等其他组件还有静态文件资源的等处理请自行查阅文档,
 
 -- 布局思路 --
 
@@ -880,10 +880,11 @@ abstract class WidgetsBindingObserver {
     class Address {
         static const String host = "https://peiban-beta.mypaas.com.cn/api/v1/";
 
-        static const String _login = "login"; // 登录
-        static const String _userInfo = "user"; // 用户信息
-        static const String _banner = "carouse"; // 首页banner
-        static const String _category = "cateory"; // 首页课程类别
+        static const String login = "login"; // 登录
+        static const String userInfo = "user"; // 用户信息
+        static const String banner = "carouse"; // 首页banner
+        static const String category = "cateory"; // 首页课程类别
+        static const String courseDetail = "course"; // 课程详情
     }
 
    ```
@@ -953,16 +954,196 @@ abstract class WidgetsBindingObserver {
 
    > 其中 token 存储在类似 localstorage 的东西 shared_preferences 这个库
 
+   6. 接口返回的是 json，dart 支持的是 map，因此需要做对于的转换
+
+   在 pubspec.yaml 里面声明
+
+   dependencies
+    json_annotation: ^2.4.0
+   dev_dependencies:
+    build_runner: ^1.4.0
+    json_serializable: ^3.0.0
+
+   定义数据model
+
+    ```
+    import 'package:json_annotation/json_annotation.dart';
+    // 后续生成的文件
+    part 'course_detail_model.g.dart';
+
+    ///这个标注是告诉生成器，这个类是需要生成Model类的
+    @JsonSerializable()
+    class CourseDetailModel {
+    int courseId;
+    String courseName;
+    String imgUrl;
+    String categoryName;
+    List<CatalogsModel> catalogs;
+    int topicId;
+    int collected;
+    String author;
+
+    CourseDetailModel({
+        this.courseId,
+        this.courseName,
+        this.imgUrl,
+        this.categoryName,
+        this.catalogs,
+        this.topicId,
+        this.collected,
+        this.author,
+    });
+
+    //不同的类使用不同的mixin即可
+    factory CourseDetailModel.fromJson(Map<String, dynamic> json) =>
+        _$CourseDetailModelFromJson(json);
+    Map<String, dynamic> toJson() => _$CourseDetailModelToJson(this);
+    }
+
+    ///这个标注是告诉生成器，这个类是需要生成Model类的
+    @JsonSerializable()
+    class CatalogsModel {
+    int catalogId;
+    String catalogName;
+    String catalogAlias;
+    String videoUrl;
+    String catalogDesc;
+    String playTime;
+    List<PptModel> ppt;
+    int curPptIndex;
+    int totalPptCount;
+    String pptTitle;
+    String taskId;
+    dynamic status;
+    int mediaType; //视频3 音频2
+    int videoByteSize;
+
+    CatalogsModel({
+        this.catalogId,
+        this.catalogName,
+        this.catalogAlias,
+        this.videoUrl,
+        this.catalogDesc,
+        this.playTime,
+        this.ppt,
+        this.curPptIndex,
+        this.pptTitle,
+        this.totalPptCount,
+        this.status,
+        this.taskId,
+        this.videoByteSize,
+        this.mediaType,
+    });
+
+    //不同的类使用不同的mixin即可
+    factory CatalogsModel.fromJson(Map<String, dynamic> json) =>
+        _$CatalogsModelFromJson(json);
+    Map<String, dynamic> toJson() => _$CatalogsModelToJson(this);
+    }
+
+    ///这个标注是告诉生成器，这个类是需要生成Model类的
+    @JsonSerializable()
+    class PptModel {
+    String url;
+    @JsonKey(name: 'start_time')
+    int timeStart;
+    @JsonKey(name: 'end_time')
+    int timeEnd;
+
+    PptModel({this.url, this.timeStart, this.timeEnd});
+
+    //不同的类使用不同的mixin即可
+    factory PptModel.fromJson(Map<String, dynamic> json) =>
+        _$PptModelFromJson(json);
+    Map<String, dynamic> toJson() => _$PptModelToJson(this);
+    }
+
+    ```
+
+    >   part 'course_detail_model.g.dart'; 在当前工作目录生成的model解析类，@Jsonkey相当于吧接口返回的end_time 映射成自己想要的字段,@JsonSerializable() 告诉生成器需要生成自己的model 类，通过在我们的项目根目录下运行flutter packages pub run build_runner build，生成我们的model，或者flutter packages pub run build_runner watch 监听文件变化生成，在需要时自动构建必要的文件
+
+    7. 使用
+
+    ```
+    import 'package:dio/dio.dart';
+    import 'package:myapp/common/http/address.dart';
+    import 'package:myapp/common/http/http.dart';
+    import 'package:myapp/common/model/course-detail/course_detail_model.dart';
+    import 'package:myapp/common/model/course-detail/index.dart';
+
+    class CourseDetailDao {
+    // 获取课程详情
+        static Future getCourseDetail(int courseId) async {
+            // 这里对结果进行了加工
+            try {
+            var res =
+                await httpManager.fetch('${Address.courseDetail}/$courseId');
+            var data = HttpManager.decodeJson(res);
+            if (data != null) {
+                // 根据接口返回的json转换为实体类
+                return CourseDetailModel.fromJson(data);
+            } else {
+                throw ('请求结果返回为null');
+            }
+            } catch (e) {
+            throw (e);
+            }
+        }
+    }
+
+    ```
 ---
 
 #### 5 **状态**
+
+关于flutter状态管理有很多文章都有介绍
+
+推荐文档 https://juejin.im/post/5cd91bb0f265da034e7eaca3
+根据上述的文档有一个大概模糊的整体了解
+
+系统了解，可以从
+
+- [Scoped Model](https://juejin.im/post/5b97fa0d5188255c5546dcf8)
+- [Redux](https://juejin.im/post/5ba26c086fb9a05ce57697da)
+- [BLoC](https://juejin.im/post/5bb6f344f265da0aa664d68a#heading-10)
+- [RxDart](https://juejin.im/post/5bcea438e51d4536c65d2232)
+- [Provider](https://juejin.im/post/5cdee8a151882525b21a5f9e)
+
+关于 fish-redux
+
+https://juejin.im/post/5d9edb39f265da5bb252ec3d
+
+https://juejin.im/post/5da133bbf265da5b894a121f
+
+https://juejin.im/post/5da421b96fb9a04de6513193
+
+
+[github地址](https://github.com/alibaba/fish-redux)
+
+文档地址
+https://hzgotb.github.io/fish-redux-docs/zh/guide/get-started/#%E4%BB%80%E4%B9%88%E6%98%AF-fish-redux
+
+目前自己项目中用的比较多的是fish-redux，
+使用过程中，感觉文档对于一些简单的用法都有介绍，但是对于一些关键性的东西，文档介绍的还是太过于概念性，导致有些理解上的偏差。遇到问题可以多看看他的issue,issue回复的还是很及时。
+
+以下总结一些自己的使用体验和经验
+
+
+
+
+
 
 ---
 
 #### 6 **调试**
 
----
 
-```
+目前我用的比较多的还是简单的print打印输出，
+还有debugger()声明断点
+https://flutterchina.club/debugging/
 
-```
+目前类似于前端f12的元素审查，调试布局页面的
+https://flutterchina.club/inspector/
+vsocde好像还不支持
+
+------
