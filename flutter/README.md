@@ -1128,9 +1128,372 @@ https://hzgotb.github.io/fish-redux-docs/zh/guide/get-started/#%E4%BB%80%E4%B9%8
 
 以下总结一些自己的使用体验和经验
 
+1. tab切换的时候，保持各自tab的状态
+
+    增加状态保持类，通用
+
+    ```
+        import 'package:flutter/material.dart';
+
+        class KeepAliveWidget extends StatefulWidget {
+            final Widget child;
+
+            const KeepAliveWidget(this.child);
+
+            @override
+            State<StatefulWidget> createState() => KeepAliveState();
+        }
+
+        class KeepAliveState extends State<KeepAliveWidget>
+            with AutomaticKeepAliveClientMixin { // 继承AutomaticKeepAliveClientMixin类
+            @override
+            bool get wantKeepAlive => true; // 重写wantKeepAlive属性为true
+
+            @override
+            Widget build(BuildContext context) {
+                return widget.child;
+            }
+        }
+
+        Widget keepAliveWrapper(Widget child) {
+            return KeepAliveWidget(child);
+        }
+
+    ```
+
+    在需要保持的页面上增加
+
+    ```
+        import 'package:fish_redux/fish_redux.dart';
+        import 'package:myapp/widget/keep_alive_wrapper.dart';
+
+        import 'effect.dart';
+        import 'reducer.dart';
+        import 'state.dart';
+        import 'view.dart';
+
+        class CourseListPage extends Page<CourseListState, Map<String, dynamic>> {
+        CourseListPage()
+            : super(
+                initState: initState,
+                effect: buildEffect(),
+                reducer: buildReducer(),
+                wrapper: keepAliveWrapper, // wrapper 指向之前的状态保持的widget
+                view: buildView,
+                dependencies: Dependencies<CourseListState>(
+                    adapter: null, slots: <String, Dependent<CourseListState>>{}),
+                middleware: <Middleware<CourseListState>>[],
+                );
+        }
+
+    ```
+
+2. 关于适配器的简单理解
+    适配器实际上就是返回的一个listview，需要往listview里面一个个的添加元素，即使里面也包含了列表，也需要一个个加进去
+
+    如图
+
+    ![adapter](../assets/img/adapter.png)
 
 
+    ```
+    import 'package:fish_redux/fish_redux.dart';
+    import 'package:myapp/common/constant/constant.dart';
+    import 'package:myapp/common/model/course-detail/course_detail_model.dart';
+    import 'package:myapp/page/course_detail_page/course_tab_component/course_catalog_component/component.dart';
+    import 'package:myapp/page/course_detail_page/course_tab_component/course_title_component/component.dart';
+    import 'package:myapp/page/course_detail_page/course_tab_component/ppt_component/component.dart';
 
+    import 'reducer.dart';
+    import 'state.dart';
+
+    class CourseTabAdapter extends DynamicFlowAdapter<CourseTabState> {
+    CourseTabAdapter()
+        : super(
+            pool: <String, Component<Object>>{
+                'courseCatalog': CourseCatalogComponent(), // 上图的课程列表的item组件
+                'ppt': PptComponent(), // 底部的ppt组件
+                'title': CourseTitleComponent(), // 加粗的标题组件
+            },
+            connector: _CourseTabConnector(),
+            reducer: buildReducer(),
+            );
+    }
+
+    // 适配器的数据连接器
+    class _CourseTabConnector extends ConnOp<CourseTabState, List<ItemBean>> {
+        @override
+        List<ItemBean> get(CourseTabState state) {
+            // 简洁模式只有显示ppt
+            List<ItemBean> result = []; // 返回的结果实际上是一个 List<ItemBean>
+            bool isSimple = state.videoEventData.videoModel == VideoModel.simple;
+            if (state.courseDetail != null && state.courseDetail.catalogs.isNotEmpty) {
+                if (!isSimple) {
+                    result.add(ItemBean('title', {'title': '课程目录'}));
+                    final List<CatalogsModel> catalogs = state.courseDetail.catalogs;
+                    // 默认只添加三条，如果显示全部，添加全部
+                    int count = state.showAll ? catalogs.length : (catalogs.length <= 3 ? catalogs.length : 3);
+                    for (int i = 0; i < count; i++) {
+                        CatalogsModel data = catalogs[i];
+                        result.add(ItemBean('courseCatalog', {
+                            'catalog': data,
+                            'index': i,
+                            'showAll': state.showAll || count - 1 != i,
+                            'count': count,
+                            'needDivision': state.courseTabData.ppt.isNotEmpty,
+                        }));
+                    }
+                }
+                if (state.courseTabData.ppt.isNotEmpty) {
+                    if (!isSimple) {
+                        result.add(ItemBean('title', {
+                            'title': state.courseTabData.catalogName,
+                            'desc': state.courseTabData.pptTitle,
+                        }));
+                    }
+                    result.add(ItemBean(
+                    'ppt',
+                    {'list': state.courseTabData.ppt, 'index': state.pptIndex},
+                    ));
+                }
+            }
+            return result;
+        }
+
+        @override
+        void set(CourseTabState state, List<ItemBean> items) {}
+
+        @override
+        subReducer(reducer) {
+            return super.subReducer(reducer);
+        }
+    }
+
+    ```
+
+    使用
+
+    ```
+    Widget buildView(
+            CourseTabState state, Dispatch dispatch, ViewService viewService) {
+        CatalogsModel courseTabData = state.courseTabData;
+        List<CatalogsModel> catalogs = state.courseDetail.catalogs;
+        final ListAdapter adapter = viewService.buildAdapter(); // 适配器
+        return Column(
+            children: <Widget>[
+            Container( // 横向滚动的目录别名列表
+                margin: EdgeInsets.only(top: AppSize.height(40)),
+                height: AppSize.height(70),
+                alignment: Alignment.center,
+                child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: catalogs.length,
+                itemBuilder: (BuildContext context, int index) {
+                    return _buttonBarItem(state, dispatch, viewService, catalogs[index],
+                        courseTabData == catalogs[index]);
+                },
+                ),
+            ),
+            Expanded(
+                flex: 1,
+                //  通过 ListView.builder生成页面
+                child: ListView.builder(
+                    physics: NeverScrollableScrollPhysics(),
+                    shrinkWrap: true,
+                    itemBuilder: adapter.itemBuilder, // 指向适配器
+                    itemCount: adapter.itemCount, // // 指向适配器
+                ),
+            ),
+            ],
+        );
+    }
+    ```
+
+    > 适配器一次性适配多个组件的数据连接，可以减少给每个组件都需要写数据链接和state处理，适配器实际上是listview有一定的性能优化
+
+3. tabbar 和 tabview，并且默认提供了DefaultTabController建立两者之间的关系，若要切换动画以及监听切换交互，可以自定义一个 Controller,在fish-redux 关于TabController的使用
+
+
+    ```
+    Effect<CourseDetailState> buildEffect() {
+        return combineEffects(<Object, Effect<CourseDetailState>>{
+            Lifecycle.initState: _init,
+            CourseDetailAction.onFetchDetail: _onFetchDetail,
+        });
+    }
+
+    void _init(Action action, Context<CourseDetailState> ctx) async {
+        // vsync 指向了tickerProvider
+        final TickerProvider tickerProvider =
+            ctx.stfState as CourseDetailStateKeepAliveStf;
+        TabController tabController = TabController(vsync: tickerProvider, length: 2);
+        CourseDetailModel detail =
+            await CourseDetailDao.getCourseDetail(ctx.state.courseId);
+        ctx.dispatch(CourseDetailActionCreator.initData(detail, tabController));
+    }
+
+    ```
+
+4. effect,reducer
+
+    effect一般都是操作一些有副作用的东西，
+    点击跳转页面，接口请求，异步操作等都放在effect里面，类型声明的时候推荐增加on 前缀
+    reducer只是单纯的组合数据，同步。不加on前缀，如果点击直接就改变了状态，而且没有其他多余的业务需求，没有必要再在effect再声明一层，直接派发reducer动作，比如显示/展开等操作
+
+5. 简单的理解dispatch的过程
+
+    一个action先在自己的组件内effect找有没有匹配的action，effect 找不到就从reducer里面找，派发action，可以派发任意组件和页面的action
+
+
+6. 数据流向的理解
+
+    关于数据流向，子组件的state，都是从父页面一层层传递下来的。子组件所有的state来自父页面，如果子组件维护了自己的一些单独的state，（子组件没有initState，子组件自己的单独的state在实现抽象类Cloneable里面声明）这些state 的改变本身就是自己组件才有的跟父组件没有任何关系，但是也要注意这些改变也触发数据连接器里面的set方法（根据子组件的state，设置父页面的state），因此也要额外在这里处理下，而且这里写的情况很容易报错，推荐所有这种state要么也在父页面维护一份同样的值，然后吧值传递给子组件，子组件直接派发父页面修改状态的方法；要么就是
+    把这个子组件直接做出一种page页面的形式。目前页面之前的通信可以使用GlobalStore，或者eventbus.
+
+    关于这个的讨论可以看issue
+    - https://github.com/alibaba/fish-redux/issues/398
+    - https://github.com/alibaba/fish-redux/issues/188
+    - https://github.com/alibaba/fish-redux/issues/406
+
+
+7. 数据连接器 ConnOp 和 Reselect
+
+    最初的数据连接器使用Reselect
+
+    ```
+    class CourseDownloadConnector extends Reselect5<
+        CourseDetailState,
+        CourseDownloadState,
+        CourseDetailModel,
+        CatalogsModel,
+        List<DownloadTask>,
+        StreamSubscription<ConnectivityResult>,
+        ConnectivityResult> {
+        @override
+        CourseDownloadState computed(
+            CourseDetailModel sub0,
+            CatalogsModel sub1,
+            List<DownloadTask> sub2,
+            StreamSubscription<ConnectivityResult> sub3,
+            ConnectivityResult sub4) {
+            return CourseDownloadState()
+            ..courseDetail = sub0
+            ..currentCatalog = sub1
+            ..tasks = sub2
+            ..connectivitySubscription = sub3
+            ..connectivityStatus = sub4;
+        }
+
+        @override
+        CourseDetailModel getSub0(CourseDetailState state) {
+            return state.courseDetail;
+        }
+
+        @override
+        CatalogsModel getSub1(CourseDetailState state) {
+            return state.currentCatalog;
+        }
+
+        @override
+        List<DownloadTask> getSub2(CourseDetailState state) {
+            return state.tasks;
+        }
+
+        @override
+        StreamSubscription<ConnectivityResult> getSub3(CourseDetailState state) {
+            return state.connectivitySubscription;
+        }
+
+        @override
+        ConnectivityResult getSub4(CourseDetailState state) {
+            return state.connectivityStatus;
+        }
+
+        @override
+        void set(CourseDetailState state, CourseDownloadState subState) {}
+    }
+    ```
+
+    >  文档不全，当使用Reselect5去链接的时候，点击下载的时候虽然打印的state已经更改（courseDetail里面目录列表里面的某个字段标示下载状态），但是视图没有更新，改用ConnOp连接以后测试正常
+
+    ```
+    class CourseDownloadConnector
+        extends ConnOp<CourseDetailState, CourseDownloadState> {
+        @override
+        CourseDownloadState get(CourseDetailState state) {
+            // TODO: implement get
+            CourseDownloadState data = CourseDownloadState();
+            data.courseDetail = state.courseDetail;
+            data.currentCatalog = state.currentCatalog;
+            data.tasks = state.tasks;
+            data.connectivityStatus = state.connectivityStatus;
+            data.connectivitySubscription = state.connectivitySubscription;
+            return data;
+        }
+
+        @override
+        void set(CourseDetailState state, CourseDownloadState subState) {
+            // TODO: implement set
+            super.set(state, subState);
+        }
+    }
+    ```
+
+
+8. Action冲突
+
+    import 'package:flutter/material.dart' hide Action;
+
+9. 路由和fluro结合,页面生成
+
+    fish-redux提供了自己的routes生成方式，也可以通过以下的方式去生成页面
+
+    ```
+    Handler courseDetailRouterHandler = Handler(
+        handlerFunc: (BuildContext context, Map<String, List<String>> params) {
+    return CourseDetailPage()
+        .buildPage({'courseId': int.parse(params["courseId"]?.first)});
+    });
+
+    Navigator.of(ctx.context)
+        .push(new MaterialPageRoute(builder: (BuildContext context) {
+        // 生成音频页面，传递当前课程详情state给音频页面
+        return AudioPage().buildPage({'courseDetailState': ctx.state});
+    })).then((data) {
+       //
+    });
+
+    Widget _bodyWidget(
+    List tabs,
+    CourseDetailState state,
+    Dispatch dispatch,
+    ViewService viewService,
+    ) {
+        bool isSimple = state.videoEventData.videoModel == VideoModel.simple;
+        if (state.tabController == null) {
+            return Container();
+        }
+        if (isSimple) {
+            return viewService.buildComponent('courseTab');
+        }
+        return TabBarView(
+            controller: state.tabController,
+            children: tabs.map((item) {
+            if (item == '开始上课') {
+                if (state.courseDetail == null || state.courseDetail.catalogs.isEmpty) {
+                    return ListPlaceholder.empty();
+                }
+                return viewService.buildComponent('courseTab');
+            } else if (item == '课后练习') {
+                return PracticeTabPage().buildPage({
+                    'practiceData': state.courseDetail,
+                });
+            }
+            return Container();
+            }).toList(),
+        );
+    }
+    ```
 
 
 ---
@@ -1147,3 +1510,15 @@ https://flutterchina.club/inspector/
 vsocde好像还不支持
 
 ------
+
+
+#### 7 **服务通信**
+
+flutter 是 用 Platform channel 的形式去调用系统服务
+
+https://flutterchina.club/platform-channels/
+
+对于一些需要原生了解的一些东西前端就无能为力了，可以从第三方库里面找，还有flutter也提供了一些系统的基础插件服务。但如果遇到问题，除了找issue 就只能让原生开发帮忙查找了。
+
+----
+
