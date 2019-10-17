@@ -1495,6 +1495,9 @@ https://hzgotb.github.io/fish-redux-docs/zh/guide/get-started/#%E4%BB%80%E4%B9%8
     }
     ```
 
+10. 抽象类Cloneable
+
+    抽象类Cloneable 调用的时候重写clone方法的时候记住不要漏了自己需要的字段，后续的reducer都是先clone再返回的
 
 ---
 
