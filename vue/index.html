@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=0" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="format-detection" content="email=no" />
+        <meta name="msapplication-tap-highlight" content="no" />
+        <title>myvue</title>
+        <style>
+            html,
+            body {
+                overflow: hidden;
+            }
+        </style>
+    </head>
+
+    <body>
+        <script src="dist/index.umd.js"></script>
+        <div id="app">
+            <div @click="send">点击我发送消息 {{test2}}</div>
+        </div>
+
+        <script>
+            let o = new Vue({
+                data: {
+                    test1: 'I am test.1',
+                    test2: 'I am test.2'
+                }
+            })
+            // get在里面打印手动触发了get收集，重设置值，触发三次update，但实际只有二次视图更新
+            o.test1 = 'hello,world.1'
+            o.test1 = 'hello,world.1.1'
+            o.test2 = 'hello,world.2'
+        </script>
+    </body>
+</html>
