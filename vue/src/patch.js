@@ -1,4 +1,5 @@
 import { nodeOps } from './nodeOps'
+import { isUndef } from './utils'
 
 // 指定父节点插入一个子节点，如果指定了ref，那么相当与在这个ref节点前面插入一个子节点
 const insert = (parent, ele, ref) => {
@@ -90,7 +91,7 @@ const updateChildren = (parentElm, oldCh, ch) => {
     let newEndIdx = ch.length - 1
     let newStartVnode = ch[newStartIdx]
     let newEndVnode = ch[newEndIdx]
-    let oldKeyToIdx, idxInOld, vnodeToMove, refElm
+    let oldKeyToIdx, idxInOld, refElm
     /**
      * 当 oldStartVnode 或者 oldEndVnode 不存在的时候，oldStartIdx 与 oldEndIdx 继续向中间靠拢，
      * oldStartIdx、newStartIdx、oldEndIdx 以及 newEndIdx 两两比对的过程 2*2  次比对
@@ -111,13 +112,13 @@ const updateChildren = (parentElm, oldCh, ch) => {
             oldEndVnode = oldCh[--oldEndIdx]
             newEndVnode = ch[--newEndIdx]
         } else if (sameVnode(oldStartVnode, newEndVnode)) {
-            // 老的开始和新的尾相同，把老节点直接移动到末尾
+            // 老的开始和新的尾相同，把老节点直接移动到末尾（实际是节点互换位置）
             patchVnode(oldStartVnode, newEndVnode)
             nodeOps.insertBefore(parentElm, oldStartVnode.elm, nodeOps.nextSibling(oldEndVnode.elm))
             oldStartVnode = oldCh[++oldStartIdx]
             newEndVnode = ch[--newEndIdx]
         } else if (sameVnode(oldEndVnode, newStartVnode)) {
-            // 老节点尾和新节点头相同，移动到头
+            // 老节点尾和新节点头相同，移动到头 （实际是节点互换位置）
             patchVnode(oldEndVnode, newStartVnode)
             nodeOps.insertBefore(parentElm, oldEndVnode.elm, oldStartVnode.elm)
             oldEndVnode = oldCh[--oldEndIdx]
@@ -130,7 +131,8 @@ const updateChildren = (parentElm, oldCh, ch) => {
             }
             // 以新节点的开始节点的key，在老节点map里面找
             idxInOld = newStartVnode.key ? oldKeyToIdx[newStartVnode.key] : null
-            if (!idxInOld) {
+            if (isUndef(idxInOld)) {
+                // 不能直接!idxInOld,存在对应为0的情况，即从oldStartIdx=0开始的映射表，而应该判断为undifined或则null
                 // 新节点的开始节点没找到同样的key，直接创建节点，并把newStartIdx++
                 createElm(newStartVnode, parentElm, oldStartVnode.elm)
                 newStartVnode = ch[++newStartIdx]
@@ -140,9 +142,9 @@ const updateChildren = (parentElm, oldCh, ch) => {
                 if (sameVnode(elmToMove, newStartVnode)) {
                     // 不仅仅key相同，并且也是同一类节点
                     patchVnode(elmToMove, newStartVnode) // 比对二个节点
-                    oldCh[idxInOld] = undefined // 老节点的这个位置设置为空
-                    // 匹配的这个newStartVnode节点添加到老节点的start前面
-                    nodeOps.insertBefore(parentElm, newStartVnode.elm, oldStartVnode.elm)
+                    oldCh[idxInOld] = undefined // 老节点的这个位置设置为空,该位置已经对比
+                    // 匹配的这个newStartVnode节点添加到老节点的start前面，（实际是节点互换位置）
+                    nodeOps.insertBefore(parentElm, elmToMove.elm, oldStartVnode.elm)
                     newStartVnode = ch[++newStartIdx]
                 } else {
                     // 实际没有匹配，这只能创建新节点，往后移,跟!idxInOld一样
@@ -176,7 +178,7 @@ function patchVnode(oldVnode, vnode) {
         return
     }
     let elm = (vnode.elm = oldVnode.elm)
-    let oldCh = oldVnode.has - children
+    let oldCh = oldVnode.children
     let ch = vnode.children
 
     if (vnode.text) {

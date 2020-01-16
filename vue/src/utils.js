@@ -2,4 +2,7 @@ const isObject = value => {
     return Object.prototype.toString.call(value) === '[object Object]'
 }
 
-export { isObject }
+const isUndef = value => {
+    return value === undefined || value === null
+}
+export { isObject, isUndef }
