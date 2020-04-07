@@ -227,9 +227,9 @@
         }
       }
 
-      if (pos > 0) {
+      if (pos >= 0) {
         stack.length = pos;
-        currentParent = stack[pos];
+        currentParent = pos === 0 ? null : stack[pos - 1];
       }
     };
 
@@ -378,6 +378,15 @@
   var parse = function parse(html) {
     return parseHTML(html);
   };
+  /**
+   *
+   * @param {*} ast ast
+   * _c createtag 创建虚拟vnode 标签
+   * _l 循环创建虚拟节点
+   * _v 创建文本虚拟节点
+   * _s 取值 _s(count) this.count
+   */
+
 
   var generate = function generate(ast) {
     var genIf, genFor, genElement, genChildren, genNode;
@@ -430,7 +439,8 @@
     };
 
     var genText = function genText(el) {
-      return "_v(".concat(el.expression, ")");
+      // 纯文本3的话不需要expression，纯文本3这个为undifined,type === 2 的话需要表达式 el.expression如： "count:" + _s(count)
+      return "_v(".concat(el.type === 3 ? el.text : el.expression, ")");
     };
 
     var code = ast ? genElement(ast) : '_c("div")';
@@ -546,6 +556,14 @@
     function Vue(options) {
       classCallCheck(this, Vue);
 
+      this._rootElm = options.el ? document.querySelector(options.el) : 'body';
+
+      if (!options.template) {
+        console.warn('缺少模板');
+        return;
+      }
+
+      var renderString = compiler(options.template);
       this._data = options.data;
 
       this._proxy(options.data);
@@ -587,8 +605,6 @@
   }();
 
   window.Vue = Vue;
-  var html = '<div :class="c" class="demo" v-if="isShow"><span v-for="(item, i) in sz">{{item}}</span></div>';
-  compiler(html);
 
   exports.Vue = Vue;
 

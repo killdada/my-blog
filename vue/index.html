@@ -19,15 +19,25 @@
 
     <body>
         <script src="dist/index.umd.js"></script>
-        <div id="app">
-            <div @click="send">点击我发送消息 {{test2}}</div>
-        </div>
+        <div id="app"></div>
 
         <script>
             let o = new Vue({
+                el: '#app',
+                template:
+                    '<div><div :class= "classtest" class= "demo" v-if= "isShow"><span v-for="(item, i) in list">{{ item }}</span></div><div>count:{{count}}</div><div @click="clickAdd">点击count++</div></div>',
                 data: {
                     test1: 'I am test.1',
-                    test2: 'I am test.2'
+                    test2: 'I am test.2',
+                    classtest: 'classtest',
+                    count: 0,
+                    isShow: true,
+                    list: ['item1', 'item2']
+                },
+                methods: {
+                    clickAdd() {
+                        this.count++
+                    }
                 }
             })
             // get在里面打印手动触发了get收集，重设置值，触发三次update，但实际只有二次视图更新

@@ -102,9 +102,10 @@ const parseHTML = (html, option) => {
                 break
             }
         }
-        if (pos > 0) {
+
+        if (pos >= 0) {
             stack.length = pos
-            currentParent = stack[pos]
+            currentParent = pos === 0 ? null : stack[pos - 1]
         }
     }
     const parseStartTag = () => {
@@ -240,6 +241,14 @@ const parse = html => {
     return parseHTML(html)
 }
 
+/**
+ *
+ * @param {*} ast ast
+ * _c createtag 创建虚拟vnode 标签
+ * _l 循环创建虚拟节点
+ * _v 创建文本虚拟节点
+ * _s 取值 _s(count) this.count
+ */
 const generate = ast => {
     let genIf, genFor, genElement, genChildren, genNode
     genNode = el => {
@@ -285,7 +294,8 @@ const generate = ast => {
         )`
     }
     const genText = el => {
-        return `_v(${el.expression})`
+        // 纯文本3的话不需要expression，纯文本3这个为undifined,type === 2 的话需要表达式 el.expression如： "count:" + _s(count)
+        return `_v(${el.type === 3 ? el.text : el.expression})`
     }
     const code = ast ? genElement(ast) : '_c("div")'
     return {

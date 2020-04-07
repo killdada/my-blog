@@ -5,8 +5,17 @@ import { Watcher } from './watcher'
 class Vue {
     /* Vue构造类 */
     constructor(options) {
+        this._rootElm = options.el ? document.querySelector(options.el) : 'body'
+        if (!options.template) {
+            console.warn('缺少模板')
+            return
+        }
+
+        const renderString = compiler(options.template)
+
         this._data = options.data
         this._proxy(options.data)
+
         observer(this._data) // 建立联系， Object.defineProperty get set处理
 
         // 实际每一个属性都是一个watcher
@@ -35,10 +44,5 @@ class Vue {
 }
 
 window.Vue = Vue
-
-const html =
-    '<div :class="c" class="demo" v-if="isShow"><span v-for="(item, i) in sz">{{item}}</span></div>'
-
-compiler(html)
 
 export { Vue }
